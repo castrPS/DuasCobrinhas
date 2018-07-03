@@ -21,6 +21,7 @@ data State = State {
     snake1 :: [Vector],
     snake2 :: [Vector],
     fruit :: Maybe (Vector, StdGen),
+    blocks :: [Vector],
     move1 :: Maybe MoveVector,
     move2 :: Maybe MoveVector,
     points1 :: Int,
@@ -45,6 +46,7 @@ initialState = getStdGen
         snake1 = [(4, 0), (3, 0), (2, 0), (1, 0), (0, 0)],
         snake2 = [(4, 10), (3, 10), (2, 10), (1, 10), (0, 10)],
         fruit = randomElem (concat (buildBoard 40)) stdGen,
+        blocks = [],
         move1  = Just (0, 1, 0),
         move2  = Just (1, 1, 0),
         points1 = 0,
@@ -59,12 +61,28 @@ randomElem xs inputStdGen  = Just (element, stdGen)
           stdGen           = snd indexStdGenTuple
           element          = xs !! index
 
+randomBlock :: [a] -> a
+randomBlock xs = element
+    where indexStdGenTuple = randomR (0, length xs - 1) stdG
+          stdG = mkStdGen 3
+          index            = fst indexStdGenTuple
+          element          = xs !! index
+
 newFruit :: State -> Maybe (Vector, StdGen)
 newFruit (State { fruit = Nothing }) = Nothing
 newFruit state@(State { fruit = Just (_, stdGen) })
-    = randomElem validPositions stdGen
+    = randomElem validPositions3 stdGen
         where allPositions   = concat $ buildBoard $ board state
-              validPositions = allPositions \\ snake1 state
+              validPositions1 = allPositions \\ snake1 state
+              validPositions2 = validPositions1 \\ snake2 state
+              validPositions3 = validPositions2 \\ blocks state
+
+newBlock :: State -> Vector
+newBlock state
+    = randomBlock validPositions2 
+        where allPositions   = concat $ buildBoard $ board state
+              validPositions1 = allPositions \\ snake1 state
+              validPositions2 = validPositions1 \\ snake2 state
 
 step :: State -> IO State
 step state = sample sampleLength getInput 
@@ -105,16 +123,19 @@ death (State { snake2 = [] }) = 1
 death (State {
     board = boardSize,
     snake1 = (snakeHead1@(snakeHeadX1, snakeHeadY1):snakeBody1),
-    snake2 = (snakeHead2@(snakeHeadX2, snakeHeadY2):snakeBody2)
+    snake2 = (snakeHead2@(snakeHeadX2, snakeHeadY2):snakeBody2),
+    blocks = blocks
 })
     | snakeHeadX1 >= boardSize || snakeHeadX1 < 0 = 2
     | snakeHeadY1 >= boardSize || snakeHeadY1 < 0 = 2
     | snakeHead1 `elem` snakeBody1                = 2
     | snakeHead1 `elem` snakeBody2                = 2
+    | snakeHead1 `elem` blocks                    = 2
     | snakeHead2 `elem` snakeBody1                = 1
     | snakeHeadX2 >= boardSize || snakeHeadX2 < 0 = 1
     | snakeHeadY2 >= boardSize || snakeHeadY2 < 0 = 1
     | snakeHead2 `elem` snakeBody2                = 1
+    | snakeHead2 `elem` blocks                    = 1
     | snakeHead2 == snakeHead1                    = 3
     | otherwise                                   = 0
 
@@ -143,6 +164,7 @@ characterForPosition :: State -> Vector -> Char
 characterForPosition state position
     | position `elem` snake1 state                = 'o'
     | position `elem` snake2 state                = 'x'
+    | position `elem` blocks state                = '#'
     | fruit state `fruitPositionEquals` position = '@'
     | otherwise                                  = ' '
 
@@ -181,9 +203,9 @@ updateSnake2 :: State -> State
 updateSnake2 = updateSnakeTail2 . updateSnakeHead2
 
 updateFruit :: State -> State
-updateFruit state@(State {points1 = s1, points2 = s2})
-    | snake1HasFruitInMouth state = state { fruit = newFruit state, points1 = (s1+1)}
-    | snake2HasFruitInMouth state = state { fruit = newFruit state, points2 = (s2+1)}
+updateFruit state@(State {points1 = s1, points2 = s2, blocks = b})
+    | snake1HasFruitInMouth state = state { fruit = newFruit state, blocks = b ++ [newBlock state], points1 = (s1+1)}
+    | snake2HasFruitInMouth state = state { fruit = newFruit state, blocks = b ++ [newBlock state], points2 = (s2+1)}
     | otherwise                  = state
 
 updateSnakeHead1 :: State -> State
