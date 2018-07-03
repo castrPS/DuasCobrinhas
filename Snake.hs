@@ -22,6 +22,7 @@ data State = State {
     snake2 :: [Vector],
     blocks :: [Vector],
     fruits :: [Vector],
+    std :: StdGen,
     move1 :: Maybe MoveVector,
     move2 :: Maybe MoveVector,
     points1 :: Int,
@@ -41,42 +42,49 @@ sampleLength = oneSecond `div` 4
 
 initialState :: IO State
 initialState = getStdGen 
-    >>= \stdGen -> return State {
-        board = 40,
-        snake1 = [(4, 0), (3, 0), (2, 0), (1, 0), (0, 0)],
-        snake2 = [(4, 10), (3, 10), (2, 10), (1, 10), (0, 10)],
-        fruits = [randomElem (concat (buildBoard 40)) stdGen],
-        blocks = [],
-        move1  = Just (0, 1, 0),
-        move2  = Just (1, 1, 0),
-        points1 = 0,
-        points2 = 0
-    }
+            >>= \stdGen -> return State {
+                board = 40,
+                snake1 = [(4, 0), (3, 0), (2, 0), (1, 0), (0, 0)],
+                snake2 = [(4, 10), (3, 10), (2, 10), (1, 10), (0, 10)],
+                std = stdGen,
+                fruits = [randomElem (concat (buildBoard 40)) stdGen],
+                blocks = [],
+                move1  = Just (0, 1, 0),
+                move2  = Just (1, 1, 0),
+                points1 = 0,
+                points2 = 0
+            }
 
 randomElem :: [a] -> StdGen -> a
 randomElem xs inputStdGen = element
     where indexStdGenTuple = randomR (0, length xs - 1) inputStdGen
-          index            = fst indexStdGenTuple
-          element          = xs !! index
+          element          = xs !! fst (indexStdGenTuple)
 
-newFruit :: State -> Vector
-newFruit state
-    = randomElem validPositions4 (mkStdGen 3)
+newFruit :: State -> StdGen -> Vector
+newFruit state st
+    = randomElem validPositions4 st
         where allPositions   = concat $ buildBoard $ board state
               validPositions1 = allPositions \\ snake1 state
               validPositions2 = validPositions1 \\ snake2 state
               validPositions3 = validPositions2 \\ blocks state
               validPositions4 = validPositions3 \\ fruits state
 
-
-newBlock :: State -> Vector
-newBlock state
-    = randomElem validPositions4 (mkStdGen 4)
+newBlock :: State -> StdGen -> Vector
+newBlock state st
+    = randomElem validPositions4 st
         where allPositions   = concat $ buildBoard $ board state
               validPositions1 = allPositions \\ snake1 state
               validPositions2 = validPositions1 \\ snake2 state
               validPositions3 = validPositions2 \\ blocks state
               validPositions4 = validPositions3 \\ fruits state
+
+newBlocks :: State -> Int -> [Vector]
+newBlocks state 0 = [newBlock state (mkStdGen 0)]
+newBlocks state n = [newBlock state (mkStdGen n)] ++ newBlocks state (n-1)
+
+newFruits :: State -> Int -> [Vector]
+newFruits state 0 = [newFruit state (mkStdGen 1)]
+newFruits state n = [newFruit state (mkStdGen (n+1))] ++ newBlocks state (n-1)
 
 step :: State -> IO State
 step state = sample sampleLength getInput 
@@ -140,10 +148,10 @@ render state
               $ buildBoard (board state)
 
 applyBorder :: State -> [String] -> [String]
-applyBorder state@(State { board = size, points1 = s1, points2= s2}) renderedRows
+applyBorder state@(State { board = size, points1 = s1, points2= s2, blocks = b, fruits =f}) renderedRows
     = border ++ map (\row -> "I" ++ row ++ "I") renderedRows ++ border ++ score ++ text 
         where border = [replicate (size + 2) '-']
-              score = ["👻 Fantasmas: " ++ show s1 ++" 👽 Aliens: " ++ show s2]
+              score = ["👻 Fantasmas: " ++ show s1 ++" 👽 Aliens: " ++ show s2 ++ "\n"]
               text
                 | death state == 0 = [""]
                 | death state == 1 = ["👻 Os fantasmas sobreviveram! 👻"]
@@ -193,10 +201,16 @@ updateSnake2 :: State -> State
 updateSnake2 = updateSnakeTail2 . updateSnakeHead2
 
 updateFruit :: State -> State
-updateFruit state@(State {points1 = s1, points2 = s2, fruits = f, blocks = b})
-    | snake1HasFruitInMouth state = state { fruits = f ++ [newFruit state], blocks = b ++ [newBlock state], points1 = (s1+1)}
-    | snake2HasFruitInMouth state = state { fruits = f ++ [newFruit state], blocks = b ++ [newBlock state], points2 = (s2+1)}
+updateFruit state@(State {points1 = s1, points2 = s2, fruits = f, blocks = b, std = rd})
+    | snake1HasFruitInMouth state = state { fruits = f ++ newFruits state index1, blocks = b ++ newBlocks state index2, points1 = (s1+1),std = neo2}
+    | snake2HasFruitInMouth state = state { fruits = f ++ newFruits state index1, blocks = b ++ newBlocks state index2, points2 = (s2+1),std = neo2}
     | otherwise                  = state
+    where indexStdGenTuple1 = randomR (0, 4) (rd)
+          index1            = fst indexStdGenTuple1
+          neo              = snd indexStdGenTuple1
+          indexStdGenTuple2 = randomR (0, 4) (neo)
+          index2            = fst indexStdGenTuple2
+          neo2              = snd indexStdGenTuple1
 
 updateSnakeHead1 :: State -> State
 updateSnakeHead1 state@(State { move1 = (Just vector) })
