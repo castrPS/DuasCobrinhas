@@ -149,23 +149,23 @@ applyBorder :: State -> [String] -> [String]
 applyBorder state@(State { board = size, points1 = s1, points2= s2}) renderedRows
     = border ++ map (\row -> "I" ++ row ++ "I") renderedRows ++ border ++ score ++ text 
         where border = [replicate (size + 2) '-']
-              score = ["Cobra1: " ++ show s1 ++" Cobra2: " ++ show s2]
+              score = ["👻 Fantasmas: " ++ show s1 ++"👽 Aliens: " ++ show s2]
               text
                 | death state == 0 = [""]
-                | death state == 1 = ["Cobra 1 sobreviveu!"]
-                | death state == 2 = ["Cobra 2 sobreviveu!"]
-                | death state == 3 = ["Cobra comendo cobra não é legal. Empate!"]
-                | otherwise = ["É o jogo da cobrinha!"]
+                | death state == 1 = ["👻 Os fantasmas sobreviveram! 👻"]
+                | death state == 2 = ["👽 Os aliens sobreviveram! 👽 "]
+                | death state == 3 = ["Os anjos nem precisaram tentar, pois os aliens e os fantasmas acabaram se destruindo!"]
+                | otherwise = ["!!!"]
 
 renderRow :: State -> [Vector] -> String
 renderRow state = map (characterForPosition state)
 
 characterForPosition :: State -> Vector -> Char
 characterForPosition state position
-    | position `elem` snake1 state                = 'o'
-    | position `elem` snake2 state                = 'x'
-    | position `elem` blocks state                = '#'
-    | fruit state `fruitPositionEquals` position = '@'
+    | position `elem` blocks state                = '👼'
+    | position `elem` snake1 state                = '👻'
+    | position `elem` snake2 state                = '👽'
+    | fruit state `fruitPositionEquals` position = '😐'
     | otherwise                                  = ' '
 
 fruitPositionEquals :: Maybe (Vector, StdGen) -> Vector -> Bool
