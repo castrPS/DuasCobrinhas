@@ -22,7 +22,9 @@ data State = State {
     snake2 :: [Vector],
     fruit :: Maybe (Vector, StdGen),
     move1 :: Maybe MoveVector,
-    move2 :: Maybe MoveVector
+    move2 :: Maybe MoveVector,
+    points1 :: Int,
+    points2 :: Int
 } deriving Show
 
 main :: IO State
@@ -44,7 +46,9 @@ initialState = getStdGen
         snake2 = [(4, 10), (3, 10), (2, 10), (1, 10), (0, 10)],
         fruit = randomElem (concat (buildBoard 40)) stdGen,
         move1  = Just (0, 1, 0),
-        move2  = Just (1, 1, 0)
+        move2  = Just (1, 1, 0),
+        points1 = 0,
+        points2 = 0
     }
 
 randomElem :: [a] -> StdGen -> Maybe (a, StdGen)
@@ -121,14 +125,15 @@ render state
               $ buildBoard (board state)
 
 applyBorder :: State -> [String] -> [String]
-applyBorder state@(State { board = size}) renderedRows
-    = border ++ map (\row -> "I" ++ row ++ "I") renderedRows ++ border ++ ["É o jogo da cobrinha!"] ++ text 
+applyBorder state@(State { board = size, points1 = s1, points2= s2}) renderedRows
+    = border ++ map (\row -> "I" ++ row ++ "I") renderedRows ++ border ++ score ++ text 
         where border = [replicate (size + 2) '-']
+              score = ["Cobra1: " ++ show s1 ++" Cobra2: " ++ show s2]
               text
                 | death state == 0 = [""]
-                | death state == 1 = ["Cobra 1 ganhou!"]
-                | death state == 2 = ["Cobra 2 ganhou!"]
-                | death state == 3 = ["Empate!"]
+                | death state == 1 = ["Cobra 1 sobreviveu!"]
+                | death state == 2 = ["Cobra 2 sobreviveu!"]
+                | death state == 3 = ["Cobra comendo cobra não é legal. Empate!"]
                 | otherwise = ["É o jogo da cobrinha!"]
 
 renderRow :: State -> [Vector] -> String
@@ -176,9 +181,9 @@ updateSnake2 :: State -> State
 updateSnake2 = updateSnakeTail2 . updateSnakeHead2
 
 updateFruit :: State -> State
-updateFruit state
-    | snake1HasFruitInMouth state = state { fruit = newFruit state }
-    | snake2HasFruitInMouth state = state { fruit = newFruit state }
+updateFruit state@(State {points1 = s1, points2 = s2})
+    | snake1HasFruitInMouth state = state { fruit = newFruit state, points1 = (s1+1)}
+    | snake2HasFruitInMouth state = state { fruit = newFruit state, points2 = (s2+1)}
     | otherwise                  = state
 
 updateSnakeHead1 :: State -> State
