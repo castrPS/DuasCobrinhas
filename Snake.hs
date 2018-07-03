@@ -69,6 +69,12 @@ newFruit state st
               validPositions3 = validPositions2 \\ blocks state
               validPositions4 = validPositions3 \\ fruits state
 
+scrambleFruits :: [Vector] -> [Vector]
+scrambleFruits f = map mix f
+
+mix :: Vector -> Vector
+mix (a,b) = ((a*a `mod` 40),(b*a `mod` 40))
+
 newBlock :: State -> StdGen -> Vector
 newBlock state st
     = randomElem validPositions4 st
@@ -202,13 +208,13 @@ updateSnake2 = updateSnakeTail2 . updateSnakeHead2
 
 updateFruit :: State -> State
 updateFruit state@(State {points1 = s1, points2 = s2, fruits = f, blocks = b, std = rd})
-    | snake1HasFruitInMouth state = state { fruits = f ++ newFruits state index1, blocks = b ++ newBlocks state index2, points1 = (s1+1),std = neo2}
-    | snake2HasFruitInMouth state = state { fruits = f ++ newFruits state index1, blocks = b ++ newBlocks state index2, points2 = (s2+1),std = neo2}
+    | snake1HasFruitInMouth state = state { fruits = scrambleFruits (f ++ newFruits state index1), blocks = b ++ newBlocks state index2, points1 = (s1+1),std = neo2}
+    | snake2HasFruitInMouth state = state { fruits = scrambleFruits(f ++ newFruits state index1), blocks = b ++ newBlocks state index2, points2 = (s2+1),std = neo2}
     | otherwise                  = state
-    where indexStdGenTuple1 = randomR (0, 4) (rd)
+    where indexStdGenTuple1 = randomR (1, 5) (rd)
           index1            = fst indexStdGenTuple1
           neo              = snd indexStdGenTuple1
-          indexStdGenTuple2 = randomR (0, 4) (neo)
+          indexStdGenTuple2 = randomR (0, 3) (neo)
           index2            = fst indexStdGenTuple2
           neo2              = snd indexStdGenTuple1
 
