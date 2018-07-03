@@ -41,10 +41,10 @@ initialState = getStdGen
     >>= \stdGen -> return State {
         board = 40,
         snake1 = [(4, 0), (3, 0), (2, 0), (1, 0), (0, 0)],
-    snake2 = [(4, 10), (3, 10), (2, 10), (1, 10), (0, 10)],
+        snake2 = [(4, 10), (3, 10), (2, 10), (1, 10), (0, 10)],
         fruit = randomElem (concat (buildBoard 40)) stdGen,
         move1  = Just (0, 1, 0),
-    move2  = Just (1, 1, 0)
+        move2  = Just (1, 1, 0)
     }
 
 randomElem :: [a] -> StdGen -> Maybe (a, StdGen)
@@ -91,31 +91,45 @@ getInput = hSetEcho stdin False
 gameOver :: State -> Bool
 gameOver (State { snake1 = [] }) = True
 gameOver (State { snake2 = [] }) = True
-gameOver (State {
+gameOver state 
+    | death state > 0 = True
+    | otherwise       = False
+
+death :: State -> Int
+death (State { snake1 = [] }) = 2
+death (State { snake2 = [] }) = 1
+death (State {
     board = boardSize,
     snake1 = (snakeHead1@(snakeHeadX1, snakeHeadY1):snakeBody1),
     snake2 = (snakeHead2@(snakeHeadX2, snakeHeadY2):snakeBody2)
 })
-    | snakeHeadX1 >= (boardSize*2) || snakeHeadX1 < 0 = True
-    | snakeHeadY1 >= boardSize || snakeHeadY1 < 0 = True
-    | snakeHead1 `elem` snakeBody1                = True
-    | snakeHead2 `elem` snakeBody1                = True
-    | snakeHeadX2 >= (boardSize*2) || snakeHeadX2 < 0 = True
-    | snakeHeadY2 >= boardSize || snakeHeadY2 < 0 = True
-    | snakeHead2 `elem` snakeBody1                = True
-    | snakeHead2 `elem` snakeBody2                = True
-    | otherwise                                 = False
+    | snakeHeadX1 >= boardSize || snakeHeadX1 < 0 = 2
+    | snakeHeadY1 >= boardSize || snakeHeadY1 < 0 = 2
+    | snakeHead1 `elem` snakeBody1                = 2
+    | snakeHead1 `elem` snakeBody2                = 2
+    | snakeHead2 `elem` snakeBody1                = 1
+    | snakeHeadX2 >= boardSize || snakeHeadX2 < 0 = 1
+    | snakeHeadY2 >= boardSize || snakeHeadY2 < 0 = 1
+    | snakeHead2 `elem` snakeBody2                = 1
+    | snakeHead2 == snakeHead1                    = 3
+    | otherwise                                   = 0
 
 render :: State -> String
 render state
-    = unlines $ applyBorder (board state)
+    = unlines $ applyBorder state
               $ map (renderRow state)
               $ buildBoard (board state)
 
-applyBorder :: Int -> [String] -> [String]
-applyBorder size renderedRows
-    = border ++ map (\row -> "I" ++ row ++ "I") renderedRows ++ border
-        where border = [replicate ((size*2) + 1) '-']
+applyBorder :: State -> [String] -> [String]
+applyBorder state@(State { board = size}) renderedRows
+    = border ++ map (\row -> "I" ++ row ++ "I") renderedRows ++ border ++ ["É o jogo da cobrinha!"] ++ text 
+        where border = [replicate (size + 2) '-']
+              text
+                | death state == 0 = [""]
+                | death state == 1 = ["Cobra 1 ganhou!"]
+                | death state == 2 = ["Cobra 2 ganhou!"]
+                | death state == 3 = ["Empate!"]
+                | otherwise = ["É o jogo da cobrinha!"]
 
 renderRow :: State -> [Vector] -> String
 renderRow state = map (characterForPosition state)
@@ -141,7 +155,7 @@ snake2HasFruitInMouth state
 
 buildBoard :: Int -> [[(Int, Int)]]
 buildBoard size
-    = [[(x, y) | x <- [0 .. (size - 1)*2]] | y <- reverse [0 .. size - 1]]
+    = [[(x, y) | x <- [0 .. (size - 1)]] | y <- reverse [0 .. size - 1]]
 
 updateState :: State -> Maybe MoveVector -> State
 updateState state inputMove
