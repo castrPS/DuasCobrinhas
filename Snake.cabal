@@ -1,0 +1,18 @@
+Name:          DuasCobrinhas
+Version:       1.0.0
+Cabal-Version: >= 1.2
+License:       BSD3
+Author:        AsPocsMaisFamosasDaCidade
+Homepage:      https://github.com/castrPS/DuasCobrinhas.git
+Category:      Games
+Synopsis:      Duas cobrinhas lutando pela sobrevivência!
+Build-type:    Simple
+
+Executable Snake
+  Build-Depends: base >= 4.6.0.1,
+                 monad-loops >= 0.4.2.1,
+                 ansi-terminal >= 0.5,
+                 async >= 2.0.1.5,
+                 random >= 1.0.1.1
+  Main-Is:       Snake.hs
+  Ghc-Options:   -Wall
