@@ -20,8 +20,8 @@ data State = State {
     board :: Int,
     snake1 :: [Vector],
     snake2 :: [Vector],
-    fruit :: Maybe (Vector, StdGen),
     blocks :: [Vector],
+    fruits :: [Vector],
     move1 :: Maybe MoveVector,
     move2 :: Maybe MoveVector,
     points1 :: Int,
@@ -45,7 +45,7 @@ initialState = getStdGen
         board = 40,
         snake1 = [(4, 0), (3, 0), (2, 0), (1, 0), (0, 0)],
         snake2 = [(4, 10), (3, 10), (2, 10), (1, 10), (0, 10)],
-        fruit = randomElem (concat (buildBoard 40)) stdGen,
+        fruits = [randomElem (concat (buildBoard 40)) stdGen],
         blocks = [],
         move1  = Just (0, 1, 0),
         move2  = Just (1, 1, 0),
@@ -53,36 +53,30 @@ initialState = getStdGen
         points2 = 0
     }
 
-randomElem :: [a] -> StdGen -> Maybe (a, StdGen)
-randomElem [] _  = Nothing
-randomElem xs inputStdGen  = Just (element, stdGen)
+randomElem :: [a] -> StdGen -> a
+randomElem xs inputStdGen = element
     where indexStdGenTuple = randomR (0, length xs - 1) inputStdGen
           index            = fst indexStdGenTuple
-          stdGen           = snd indexStdGenTuple
           element          = xs !! index
 
-randomBlock :: [a] -> a
-randomBlock xs = element
-    where indexStdGenTuple = randomR (0, length xs - 1) stdG
-          stdG = mkStdGen 3
-          index            = fst indexStdGenTuple
-          element          = xs !! index
-
-newFruit :: State -> Maybe (Vector, StdGen)
-newFruit (State { fruit = Nothing }) = Nothing
-newFruit state@(State { fruit = Just (_, stdGen) })
-    = randomElem validPositions3 stdGen
+newFruit :: State -> Vector
+newFruit state
+    = randomElem validPositions4 (mkStdGen 3)
         where allPositions   = concat $ buildBoard $ board state
               validPositions1 = allPositions \\ snake1 state
               validPositions2 = validPositions1 \\ snake2 state
               validPositions3 = validPositions2 \\ blocks state
+              validPositions4 = validPositions3 \\ fruits state
+
 
 newBlock :: State -> Vector
 newBlock state
-    = randomBlock validPositions2 
+    = randomElem validPositions4 (mkStdGen 4)
         where allPositions   = concat $ buildBoard $ board state
               validPositions1 = allPositions \\ snake1 state
               validPositions2 = validPositions1 \\ snake2 state
+              validPositions3 = validPositions2 \\ blocks state
+              validPositions4 = validPositions3 \\ fruits state
 
 step :: State -> IO State
 step state = sample sampleLength getInput 
@@ -124,18 +118,18 @@ death (State {
     board = boardSize,
     snake1 = (snakeHead1@(snakeHeadX1, snakeHeadY1):snakeBody1),
     snake2 = (snakeHead2@(snakeHeadX2, snakeHeadY2):snakeBody2),
-    blocks = blocks
+    blocks = b
 })
     | snakeHeadX1 >= boardSize || snakeHeadX1 < 0 = 2
     | snakeHeadY1 >= boardSize || snakeHeadY1 < 0 = 2
     | snakeHead1 `elem` snakeBody1                = 2
     | snakeHead1 `elem` snakeBody2                = 2
-    | snakeHead1 `elem` blocks                    = 2
+    | snakeHead1 `elem` b                   = 2
     | snakeHead2 `elem` snakeBody1                = 1
     | snakeHeadX2 >= boardSize || snakeHeadX2 < 0 = 1
     | snakeHeadY2 >= boardSize || snakeHeadY2 < 0 = 1
     | snakeHead2 `elem` snakeBody2                = 1
-    | snakeHead2 `elem` blocks                    = 1
+    | snakeHead2 `elem` b                   = 1
     | snakeHead2 == snakeHead1                    = 3
     | otherwise                                   = 0
 
@@ -149,7 +143,7 @@ applyBorder :: State -> [String] -> [String]
 applyBorder state@(State { board = size, points1 = s1, points2= s2}) renderedRows
     = border ++ map (\row -> "I" ++ row ++ "I") renderedRows ++ border ++ score ++ text 
         where border = [replicate (size + 2) '-']
-              score = ["👻 Fantasmas: " ++ show s1 ++"👽 Aliens: " ++ show s2]
+              score = ["👻 Fantasmas: " ++ show s1 ++" 👽 Aliens: " ++ show s2]
               text
                 | death state == 0 = [""]
                 | death state == 1 = ["👻 Os fantasmas sobreviveram! 👻"]
@@ -165,20 +159,16 @@ characterForPosition state position
     | position `elem` blocks state                = '👼'
     | position `elem` snake1 state                = '👻'
     | position `elem` snake2 state                = '👽'
-    | fruit state `fruitPositionEquals` position = '😐'
+    | position `elem` fruits state                = '😐'
     | otherwise                                  = ' '
-
-fruitPositionEquals :: Maybe (Vector, StdGen) -> Vector -> Bool
-fruitPositionEquals (Just (position, _)) vector = position == vector
-fruitPositionEquals _ _                         = False
 
 snake1HasFruitInMouth :: State -> Bool
 snake1HasFruitInMouth state
-    = fruit state `fruitPositionEquals` head (snake1 state)
+    = head (snake1 state) `elem` fruits state  
 
 snake2HasFruitInMouth :: State -> Bool
 snake2HasFruitInMouth state
-    = fruit state `fruitPositionEquals` head (snake2 state)
+    = head (snake2 state) `elem` fruits state  
 
 buildBoard :: Int -> [[(Int, Int)]]
 buildBoard size
@@ -203,9 +193,9 @@ updateSnake2 :: State -> State
 updateSnake2 = updateSnakeTail2 . updateSnakeHead2
 
 updateFruit :: State -> State
-updateFruit state@(State {points1 = s1, points2 = s2, blocks = b})
-    | snake1HasFruitInMouth state = state { fruit = newFruit state, blocks = b ++ [newBlock state], points1 = (s1+1)}
-    | snake2HasFruitInMouth state = state { fruit = newFruit state, blocks = b ++ [newBlock state], points2 = (s2+1)}
+updateFruit state@(State {points1 = s1, points2 = s2, fruits = f, blocks = b})
+    | snake1HasFruitInMouth state = state { fruits = f ++ [newFruit state], blocks = b ++ [newBlock state], points1 = (s1+1)}
+    | snake2HasFruitInMouth state = state { fruits = f ++ [newFruit state], blocks = b ++ [newBlock state], points2 = (s2+1)}
     | otherwise                  = state
 
 updateSnakeHead1 :: State -> State
