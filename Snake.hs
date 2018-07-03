@@ -43,11 +43,11 @@ sampleLength = oneSecond `div` 4
 initialState :: IO State
 initialState = getStdGen 
             >>= \stdGen -> return State {
-                board = 40,
+                board = 50,
                 snake1 = [(4, 0), (3, 0), (2, 0), (1, 0), (0, 0)],
-                snake2 = [(4, 10), (3, 10), (2, 10), (1, 10), (0, 10)],
+                snake2 = [(20, 10), (19, 10), (18, 10), (17, 10), (16, 10)],
                 std = stdGen,
-                fruits = [randomElem (concat (buildBoard 40)) stdGen],
+                fruits = [randomElem (concat (buildBoard 50)) stdGen],
                 blocks = [],
                 move1  = Just (0, 1, 0),
                 move2  = Just (1, 1, 0),
@@ -73,7 +73,7 @@ scrambleFruits :: [Vector] -> [Vector]
 scrambleFruits f = map mix f
 
 mix :: Vector -> Vector
-mix (a,b) = ((a*a `mod` 40),(b*a `mod` 40))
+mix (a,b) = ((a*a `mod` 50),(b*a `mod` 50))
 
 newBlock :: State -> StdGen -> Vector
 newBlock state st
