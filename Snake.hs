@@ -34,7 +34,18 @@ data State = State {
 main= do
         score <- newMVar (0,0)
         game score
+        putStrLn "O placar vai se manter, quer jogar novamente? (s/n)"
+        resp <- getLine 
+        newGame resp score 
+
+newGame:: String -> Score -> IO ()
+newGame resp score 
+    | resp == "S" = do
         game score
+        putStrLn "O placar vai se manter, quer jogar novamente? (S/N)"
+        resp <- getLine 
+        newGame resp score 
+    | otherwise = do putStrLn "Bye Bye!!!"
 
 game :: Score -> IO State
 game score = clearScreen
