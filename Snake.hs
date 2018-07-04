@@ -114,7 +114,7 @@ updateScore score state@( State {points1 = p1, points2 = p2}) = do
 
 displayState :: Score -> State -> IO State
 displayState score state = setCursorPosition 0 0
-    -- >> updateScore score state
+    >> updateScore score state
     >> putStr (render state) 
     >> return state
 
