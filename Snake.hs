@@ -14,6 +14,8 @@ import Control.Applicative
 
 type Vector = (Int, Int)
 
+type Score = MVar (Int, Int)
+
 type MoveVector = (Int, Int, Int)
 
 data State = State {
@@ -29,10 +31,15 @@ data State = State {
     points2 :: Int
 } deriving Show
 
-main :: IO State
-main = clearScreen
-    >> initialState 
-    >>= (iterateUntilM gameOver step)
+main= do
+        score <- newMVar (0,0)
+        game score
+        game score
+
+game :: Score -> IO State
+game score = clearScreen
+    >> initialState score
+    >>= (iterateUntilM gameOver (step score))
                
 oneSecond :: Int
 oneSecond = (9 :: Int) ^ (6 :: Int)
@@ -40,9 +47,12 @@ oneSecond = (9 :: Int) ^ (6 :: Int)
 sampleLength :: Int
 sampleLength = oneSecond `div` 4
 
-initialState :: IO State
-initialState = getStdGen 
-            >>= \stdGen -> return State {
+initialState :: Score -> IO State
+initialState score = do
+                    (a,b) <- takeMVar score
+                    putMVar score (a,b)
+                    stdGen <- getStdGen 
+                    return State {
                 board = 50,
                 snake1 = [(4, 0), (3, 0), (2, 0), (1, 0), (0, 0)],
                 snake2 = [(20, 10), (19, 10), (18, 10), (17, 10), (16, 10)],
@@ -51,8 +61,8 @@ initialState = getStdGen
                 blocks = [],
                 move1  = Just (0, 1, 0),
                 move2  = Just (1, 1, 0),
-                points1 = 0,
-                points2 = 0
+                points1 = a,
+                points2 = b
             }
 
 randomElem :: [a] -> StdGen -> a
@@ -92,13 +102,19 @@ newFruits :: State -> Int -> [Vector]
 newFruits state 0 = [newFruit state (mkStdGen 1)]
 newFruits state n = [newFruit state (mkStdGen (n+1))] ++ newBlocks state (n-1)
 
-step :: State -> IO State
-step state = sample sampleLength getInput 
+step :: Score -> State -> IO State
+step score state = sample sampleLength getInput 
     >>= \ inputMove ->
-        displayState $ updateState state (vectorFromChar inputMove)
+        displayState score $ updateState state (vectorFromChar inputMove) 
 
-displayState :: State -> IO State
-displayState state = setCursorPosition 0 0 
+updateScore :: Score -> State -> IO ()
+updateScore score state@( State {points1 = p1, points2 = p2}) = do
+                                                                takeMVar score
+                                                                putMVar score (p1,p2)
+
+displayState :: Score -> State -> IO State
+displayState score state = setCursorPosition 0 0
+    -- >> updateScore score state
     >> putStr (render state) 
     >> return state
 
