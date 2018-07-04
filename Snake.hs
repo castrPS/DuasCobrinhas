@@ -14,39 +14,54 @@ import Control.Applicative
 
 type Vector = (Int, Int)
 
+-- Nossa MVar que salva os valores dos placares
 type Score = MVar (Int, Int)
 
 type MoveVector = (Int, Int, Int)
 
 data State = State {
+    -- Tamanho do board
     board :: Int,
+    -- A posição de cada parte das cobrinhas
     snake1 :: [Vector],
     snake2 :: [Vector],
+    -- A posição de cada bloco e fruta
     blocks :: [Vector],
     fruits :: [Vector],
+    -- A key geradora de aleatorios
     std :: StdGen,
+    -- Direção e sentido das cobras
     move1 :: Maybe MoveVector,
     move2 :: Maybe MoveVector,
+    -- Pontuação de cada jogador
     points1 :: Int,
     points2 :: Int
 } deriving Show
 
+-- main
 main= do
         score <- newMVar (0,0)
         game score
         putStrLn "O placar vai se manter, quer jogar novamente? (s/n)"
-        resp <- getLine 
+        resp <- getChar 
         newGame resp score 
 
-newGame:: String -> Score -> IO ()
+-- Loop para vários jogos
+newGame:: Char -> Score -> IO ()
 newGame resp score 
-    | resp == "S" = do
+    | resp == 's' = do
         game score
-        putStrLn "O placar vai se manter, quer jogar novamente? (S/N)"
-        resp <- getLine 
+        putStrLn "O placar vai se manter, quer jogar novamente? (s/n)"
+        resp <- getChar 
         newGame resp score 
-    | otherwise = do putStrLn "Bye Bye!!!"
+    | resp == 'n' = do 
+        putStrLn "Bye Bye!!!"
+    | otherwise = do
+        putStrLn "Digite s ou n"
+        resp <- getChar 
+        newGame resp score 
 
+-- A inicalização da tela de jogo
 game :: Score -> IO State
 game score = clearScreen
     >> initialState score
@@ -58,6 +73,16 @@ oneSecond = (9 :: Int) ^ (6 :: Int)
 sampleLength :: Int
 sampleLength = oneSecond `div` 4
 
+-- Thread que controla o tempo e os inputs
+sample :: Int -> IO a -> IO (Maybe a)
+sample n f
+    | n <  0    = fmap Just f
+    | n == 0    = return Nothing
+    | otherwise =
+        concurrently (timeout n f) (threadDelay n) 
+            >>= \ (result, _) -> return result
+
+-- Estado inicial de cada jogo
 initialState :: Score -> IO State
 initialState score = do
                     (a,b) <- takeMVar score
@@ -65,17 +90,18 @@ initialState score = do
                     stdGen <- getStdGen 
                     return State {
                 board = 50,
-                snake1 = [(4, 0), (3, 0), (2, 0), (1, 0), (0, 0)],
-                snake2 = [(20, 10), (19, 10), (18, 10), (17, 10), (16, 10)],
+                snake1 = [(4, 24), (3, 24), (2, 24), (1, 24)],
+                snake2 = [(46, 27), (47, 27), (48, 27), (49, 27)],
                 std = stdGen,
                 fruits = [randomElem (concat (buildBoard 50)) stdGen],
                 blocks = [],
                 move1  = Just (0, 1, 0),
-                move2  = Just (1, 1, 0),
+                move2  = Just (1, -1, 0),
                 points1 = a,
                 points2 = b
             }
 
+-- Geração aleatória de elementos tanto pra frutas quanto para blocos
 randomElem :: [a] -> StdGen -> a
 randomElem xs inputStdGen = element
     where indexStdGenTuple = randomR (0, length xs - 1) inputStdGen
@@ -90,6 +116,12 @@ newFruit state st
               validPositions3 = validPositions2 \\ blocks state
               validPositions4 = validPositions3 \\ fruits state
 
+--Aqui gera pelo menos uma fruta
+newFruits :: State -> Int -> [Vector]
+newFruits state 0 = [newFruit state (mkStdGen 1)]
+newFruits state n = [newFruit state (mkStdGen (n+1))] ++ newBlocks state (n-1)
+
+--Aleatorizar as frutas
 scrambleFruits :: [Vector] -> [Vector]
 scrambleFruits f = map mix f
 
@@ -109,70 +141,23 @@ newBlocks :: State -> Int -> [Vector]
 newBlocks state 0 = [newBlock state (mkStdGen 0)]
 newBlocks state n = [newBlock state (mkStdGen n)] ++ newBlocks state (n-1)
 
-newFruits :: State -> Int -> [Vector]
-newFruits state 0 = [newFruit state (mkStdGen 1)]
-newFruits state n = [newFruit state (mkStdGen (n+1))] ++ newBlocks state (n-1)
-
 step :: Score -> State -> IO State
 step score state = sample sampleLength getInput 
     >>= \ inputMove ->
         displayState score $ updateState state (vectorFromChar inputMove) 
 
+-- O Score acessa a MVar e atualiza os seus valores
 updateScore :: Score -> State -> IO ()
 updateScore score state@( State {points1 = p1, points2 = p2}) = do
                                                                 takeMVar score
                                                                 putMVar score (p1,p2)
 
+--Essa eh a impressão do jogo
 displayState :: Score -> State -> IO State
 displayState score state = setCursorPosition 0 0
     >> updateScore score state
     >> putStr (render state) 
     >> return state
-
-vectorFromChar :: Maybe Char -> Maybe MoveVector
-vectorFromChar (Just 'w') = Just (0, 0,  1)
-vectorFromChar (Just 'a') = Just (0, -1,  0)
-vectorFromChar (Just 's') = Just (0, 0, -1)
-vectorFromChar (Just 'd') = Just (0, 1,  0)
-vectorFromChar (Just 'i') = Just (1, 0,  1)
-vectorFromChar (Just 'j') = Just (1, -1,  0)
-vectorFromChar (Just 'k') = Just (1, 0, -1)
-vectorFromChar (Just 'l') = Just (1, 1,  0)
-vectorFromChar _          = Nothing
-
-getInput :: IO Char
-getInput = hSetEcho stdin False 
-    >> hSetBuffering stdin NoBuffering
-    >> getChar
-
-gameOver :: State -> Bool
-gameOver (State { snake1 = [] }) = True
-gameOver (State { snake2 = [] }) = True
-gameOver state 
-    | death state > 0 = True
-    | otherwise       = False
-
-death :: State -> Int
-death (State { snake1 = [] }) = 2
-death (State { snake2 = [] }) = 1
-death (State {
-    board = boardSize,
-    snake1 = (snakeHead1@(snakeHeadX1, snakeHeadY1):snakeBody1),
-    snake2 = (snakeHead2@(snakeHeadX2, snakeHeadY2):snakeBody2),
-    blocks = b
-})
-    | snakeHeadX1 >= boardSize || snakeHeadX1 < 0 = 2
-    | snakeHeadY1 >= boardSize || snakeHeadY1 < 0 = 2
-    | snakeHead1 `elem` snakeBody1                = 2
-    | snakeHead1 `elem` snakeBody2                = 2
-    | snakeHead1 `elem` b                   = 2
-    | snakeHead2 `elem` snakeBody1                = 1
-    | snakeHeadX2 >= boardSize || snakeHeadX2 < 0 = 1
-    | snakeHeadY2 >= boardSize || snakeHeadY2 < 0 = 1
-    | snakeHead2 `elem` snakeBody2                = 1
-    | snakeHead2 `elem` b                   = 1
-    | snakeHead2 == snakeHead1                    = 3
-    | otherwise                                   = 0
 
 render :: State -> String
 render state
@@ -203,6 +188,55 @@ characterForPosition state position
     | position `elem` fruits state                = '😐'
     | otherwise                                  = ' '
 
+--Aqui analisa o que cada jogador inseriu
+vectorFromChar :: Maybe Char -> Maybe MoveVector
+vectorFromChar (Just 'w') = Just (0, 0,  1)
+vectorFromChar (Just 'a') = Just (0, -1,  0)
+vectorFromChar (Just 's') = Just (0, 0, -1)
+vectorFromChar (Just 'd') = Just (0, 1,  0)
+vectorFromChar (Just 'i') = Just (1, 0,  1)
+vectorFromChar (Just 'j') = Just (1, -1,  0)
+vectorFromChar (Just 'k') = Just (1, 0, -1)
+vectorFromChar (Just 'l') = Just (1, 1,  0)
+vectorFromChar _          = Nothing
+
+--Aqui se pega os inputs
+getInput :: IO Char
+getInput = hSetEcho stdin False 
+    >> hSetBuffering stdin NoBuffering
+    >> getChar
+
+--Verifica se o jogo acabou ou não
+gameOver :: State -> Bool
+gameOver (State { snake1 = [] }) = True
+gameOver (State { snake2 = [] }) = True
+gameOver state 
+    | death state > 0 = True
+    | otherwise       = False
+
+--Aqui verifica quem morreu
+death :: State -> Int
+death (State { snake1 = [] }) = 2
+death (State { snake2 = [] }) = 1
+death (State {
+    board = boardSize,
+    snake1 = (snakeHead1@(snakeHeadX1, snakeHeadY1):snakeBody1),
+    snake2 = (snakeHead2@(snakeHeadX2, snakeHeadY2):snakeBody2),
+    blocks = b
+})
+    | snakeHeadX1 >= boardSize || snakeHeadX1 < 0 = 2
+    | snakeHeadY1 >= boardSize || snakeHeadY1 < 0 = 2
+    | snakeHead1 `elem` snakeBody1                = 2
+    | snakeHead1 `elem` snakeBody2                = 2
+    | snakeHead1 `elem` b                   = 2
+    | snakeHead2 `elem` snakeBody1                = 1
+    | snakeHeadX2 >= boardSize || snakeHeadX2 < 0 = 1
+    | snakeHeadY2 >= boardSize || snakeHeadY2 < 0 = 1
+    | snakeHead2 `elem` snakeBody2                = 1
+    | snakeHead2 `elem` b                   = 1
+    | snakeHead2 == snakeHead1                    = 3
+    | otherwise                                   = 0
+
 snake1HasFruitInMouth :: State -> Bool
 snake1HasFruitInMouth state
     = head (snake1 state) `elem` fruits state  
@@ -217,7 +251,7 @@ buildBoard size
 
 updateState :: State -> Maybe MoveVector -> State
 updateState state inputMove
-        = updateFruit $ updateSnake1 $ updateSnake2 $ updateMove state inputMove
+        = updateItens $ updateSnake1 $ updateSnake2 $ updateMove state inputMove
 
 updateMove :: State -> Maybe MoveVector -> State
 updateMove state@(State { move1 = Just moveVector1, move2 = Just moveVector2}) inputMove@(Just inputVector)
@@ -233,12 +267,13 @@ updateSnake1 = updateSnakeTail1 . updateSnakeHead1
 updateSnake2 :: State -> State
 updateSnake2 = updateSnakeTail2 . updateSnakeHead2
 
-updateFruit :: State -> State
-updateFruit state@(State {points1 = s1, points2 = s2, fruits = f, blocks = b, std = rd})
+--Aqui dá um update nas frutas e nos blocos
+updateItens :: State -> State
+updateItens state@(State {points1 = s1, points2 = s2, fruits = f, blocks = b, std = rd})
     | snake1HasFruitInMouth state = state { fruits = scrambleFruits (f ++ newFruits state index1), blocks = b ++ newBlocks state index2, points1 = (s1+1),std = neo2}
     | snake2HasFruitInMouth state = state { fruits = scrambleFruits(f ++ newFruits state index1), blocks = b ++ newBlocks state index2, points2 = (s2+1),std = neo2}
     | otherwise                  = state
-    where indexStdGenTuple1 = randomR (1, 5) (rd)
+    where indexStdGenTuple1 = randomR (1, 3) (rd)
           index1            = fst indexStdGenTuple1
           neo              = snd indexStdGenTuple1
           indexStdGenTuple2 = randomR (0, 3) (neo)
@@ -273,11 +308,3 @@ moveVectorOpposite (z, x, y) = (z, -x, -y)
 
 first :: MoveVector -> Int
 first (z, x, y) = z
-
-sample :: Int -> IO a -> IO (Maybe a)
-sample n f
-    | n <  0    = fmap Just f
-    | n == 0    = return Nothing
-    | otherwise =
-        concurrently (timeout n f) (threadDelay n) 
-            >>= \ (result, _) -> return result
