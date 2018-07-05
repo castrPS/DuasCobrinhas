@@ -109,8 +109,8 @@ randomElem xs inputStdGen = element
     where indexStdGenTuple = randomR (0, length xs - 1) inputStdGen
           element          = xs !! fst (indexStdGenTuple)
 
-newFruit :: State -> StdGen -> Vector
-newFruit state st
+newFood :: State -> StdGen -> Vector
+newFood state st
     = randomElem validPositions4 st
         where allPositions   = concat $ buildBoard $ board state
               validPositions1 = allPositions \\ snake1 state
@@ -119,13 +119,13 @@ newFruit state st
               validPositions4 = validPositions3 \\ food state
 
 --Aqui gera pelo menos uma fruta
-newFruits :: State -> Int -> [Vector]
-newFruits state 0 = [newFruit state (mkStdGen 1)]
-newFruits state n = [newFruit state (mkStdGen (n+1))] ++ newBlocks state (n-1)
+newFoods :: State -> Int -> [Vector]
+newFoods state 0 = [newFood state (mkStdGen 1)]
+newFoods state n = [newFood state (mkStdGen (n+1))] ++ newBlocks state (n-1)
 
 --Aleatorizar as frutas
-scrambleFruits :: [Vector] -> [Vector]
-scrambleFruits f = map mix f
+scrambleFoods :: [Vector] -> [Vector]
+scrambleFoods f = map mix f
 
 mix :: Vector -> Vector
 mix (a,b) = ((a*a `mod` 50),(b*a `mod` 50))
@@ -236,15 +236,14 @@ death (State {
     | snakeHeadY2 >= boardSize || snakeHeadY2 < 0 = 1
     | snakeHead2 `elem` snakeBody2                = 1
     | snakeHead2 `elem` b                   = 1
-    | snakeHead2 == snakeHead1                    = 3
     | otherwise                                   = 0
 
-snake1HasFruitInMouth :: State -> Bool
-snake1HasFruitInMouth state
+snake1HasFoodInMouth :: State -> Bool
+snake1HasFoodInMouth state
     = head (snake1 state) `elem` food state  
 
-snake2HasFruitInMouth :: State -> Bool
-snake2HasFruitInMouth state
+snake2HasFoodInMouth :: State -> Bool
+snake2HasFoodInMouth state
     = head (snake2 state) `elem` food state  
 
 buildBoard :: Int -> [[(Int, Int)]]
@@ -272,8 +271,8 @@ updateSnake2 = updateSnakeTail2 . updateSnakeHead2
 --Aqui dá um update nas frutas e nos blocos
 updateItens :: State -> State
 updateItens state@(State {points1 = s1, points2 = s2, food = f, blocks = b, std = rd, level = l})
-    | snake1HasFruitInMouth state = state { food = scrambleFruits (f ++ newFruits state index1), blocks = b ++ newBlocks state index2, points1 = (s1+1),std = neo2}
-    | snake2HasFruitInMouth state = state { food = scrambleFruits(f ++ newFruits state index1), blocks = b ++ newBlocks state index2, points2 = (s2+1),std = neo2}
+    | snake1HasFoodInMouth state = state { food = scrambleFoods (f ++ newFoods state index1), blocks = b ++ newBlocks state index2, points1 = (s1+1),std = neo2}
+    | snake2HasFoodInMouth state = state { food = scrambleFoods(f ++ newFoods state index1), blocks = b ++ newBlocks state index2, points2 = (s2+1),std = neo2}
     | otherwise                  = state
     where indexStdGenTuple1 = randomR (1, 3) (rd)
           index1            = (fst indexStdGenTuple1)
@@ -294,12 +293,12 @@ updateSnakeHead2 state = state
 
 updateSnakeTail1 :: State -> State
 updateSnakeTail1 state
-    | snake1HasFruitInMouth state = state
+    | snake1HasFoodInMouth state = state
     | otherwise                  = state { snake1 = init $ snake1 state }
 
 updateSnakeTail2 :: State -> State
 updateSnakeTail2 state
-    | snake2HasFruitInMouth state = state
+    | snake2HasFoodInMouth state = state
     | otherwise                  = state { snake2 = init $ snake2 state }
 
 vectorAdd :: Vector -> MoveVector -> Vector
