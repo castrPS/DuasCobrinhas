@@ -17,6 +17,8 @@ type Vector = (Int, Int)
 -- Nossa MVar que salva os valores dos placares
 type Score = MVar (Int, Int)
 
+type Level = MVar Int
+
 type MoveVector = (Int, Int, Int)
 
 data State = State {
@@ -27,7 +29,7 @@ data State = State {
     snake2 :: [Vector],
     -- A posição de cada bloco e fruta
     blocks :: [Vector],
-    fruits :: [Vector],
+    food :: [Vector],
     -- A key geradora de aleatorios
     std :: StdGen,
     -- Direção e sentido das cobras
@@ -35,36 +37,40 @@ data State = State {
     move2 :: Maybe MoveVector,
     -- Pontuação de cada jogador
     points1 :: Int,
-    points2 :: Int
+    points2 :: Int,
+    level :: Int
 } deriving Show
 
 -- main
 main= do
         score <- newMVar (0,0)
-        game score
+        level <- newMVar 1
+        game level score
         putStrLn "O placar vai se manter, quer jogar novamente? (s/n)"
         resp <- getChar 
-        newGame resp score 
+        newGame resp level score 
 
 -- Loop para vários jogos
-newGame:: Char -> Score -> IO ()
-newGame resp score 
+newGame:: Char -> Level -> Score -> IO ()
+newGame resp level score 
     | resp == 's' = do
-        game score
+        l <- takeMVar level
+        putMVar level (l+1)
+        game level score
         putStrLn "O placar vai se manter, quer jogar novamente? (s/n)"
         resp <- getChar 
-        newGame resp score 
+        newGame resp level score 
     | resp == 'n' = do 
         putStrLn "Bye Bye!!!"
     | otherwise = do
         putStrLn "Digite s ou n"
         resp <- getChar 
-        newGame resp score 
+        newGame resp level score 
 
 -- A inicalização da tela de jogo
-game :: Score -> IO State
-game score = clearScreen
-    >> initialState score
+game :: Level -> Score -> IO State
+game level score = clearScreen
+    >> initialState score level
     >>= (iterateUntilM gameOver (step score))
                
 oneSecond :: Int
@@ -83,22 +89,25 @@ sample n f
             >>= \ (result, _) -> return result
 
 -- Estado inicial de cada jogo
-initialState :: Score -> IO State
-initialState score = do
+initialState :: Score -> Level -> IO State
+initialState score level = do
                     (a,b) <- takeMVar score
                     putMVar score (a,b)
+                    l <- takeMVar level
+                    putMVar level l
                     stdGen <- getStdGen 
                     return State {
                 board = 50,
                 snake1 = [(4, 24), (3, 24), (2, 24), (1, 24)],
                 snake2 = [(46, 27), (47, 27), (48, 27), (49, 27)],
                 std = stdGen,
-                fruits = [randomElem (concat (buildBoard 50)) stdGen],
+                food = [randomElem (concat (buildBoard 50)) stdGen],
                 blocks = [],
                 move1  = Just (0, 1, 0),
                 move2  = Just (1, -1, 0),
                 points1 = a,
-                points2 = b
+                points2 = b,
+                level = l
             }
 
 -- Geração aleatória de elementos tanto pra frutas quanto para blocos
@@ -114,7 +123,7 @@ newFruit state st
               validPositions1 = allPositions \\ snake1 state
               validPositions2 = validPositions1 \\ snake2 state
               validPositions3 = validPositions2 \\ blocks state
-              validPositions4 = validPositions3 \\ fruits state
+              validPositions4 = validPositions3 \\ food state
 
 --Aqui gera pelo menos uma fruta
 newFruits :: State -> Int -> [Vector]
@@ -135,7 +144,7 @@ newBlock state st
               validPositions1 = allPositions \\ snake1 state
               validPositions2 = validPositions1 \\ snake2 state
               validPositions3 = validPositions2 \\ blocks state
-              validPositions4 = validPositions3 \\ fruits state
+              validPositions4 = validPositions3 \\ food state
 
 newBlocks :: State -> Int -> [Vector]
 newBlocks state 0 = [newBlock state (mkStdGen 0)]
@@ -166,7 +175,7 @@ render state
               $ buildBoard (board state)
 
 applyBorder :: State -> [String] -> [String]
-applyBorder state@(State { board = size, points1 = s1, points2= s2, blocks = b, fruits =f}) renderedRows
+applyBorder state@(State { board = size, points1 = s1, points2= s2, blocks = b, food =f}) renderedRows
     = border ++ map (\row -> "I" ++ row ++ "I") renderedRows ++ border ++ score ++ text 
         where border = [replicate (size + 2) '-']
               score = ["👻 Fantasmas: " ++ show s1 ++" 👽 Aliens: " ++ show s2 ++ "\n"]
@@ -185,7 +194,7 @@ characterForPosition state position
     | position `elem` blocks state                = '👼'
     | position `elem` snake1 state                = '👻'
     | position `elem` snake2 state                = '👽'
-    | position `elem` fruits state                = '😐'
+    | position `elem` food state                = '😐'
     | otherwise                                  = ' '
 
 --Aqui analisa o que cada jogador inseriu
@@ -239,11 +248,11 @@ death (State {
 
 snake1HasFruitInMouth :: State -> Bool
 snake1HasFruitInMouth state
-    = head (snake1 state) `elem` fruits state  
+    = head (snake1 state) `elem` food state  
 
 snake2HasFruitInMouth :: State -> Bool
 snake2HasFruitInMouth state
-    = head (snake2 state) `elem` fruits state  
+    = head (snake2 state) `elem` food state  
 
 buildBoard :: Int -> [[(Int, Int)]]
 buildBoard size
@@ -269,12 +278,12 @@ updateSnake2 = updateSnakeTail2 . updateSnakeHead2
 
 --Aqui dá um update nas frutas e nos blocos
 updateItens :: State -> State
-updateItens state@(State {points1 = s1, points2 = s2, fruits = f, blocks = b, std = rd})
-    | snake1HasFruitInMouth state = state { fruits = scrambleFruits (f ++ newFruits state index1), blocks = b ++ newBlocks state index2, points1 = (s1+1),std = neo2}
-    | snake2HasFruitInMouth state = state { fruits = scrambleFruits(f ++ newFruits state index1), blocks = b ++ newBlocks state index2, points2 = (s2+1),std = neo2}
+updateItens state@(State {points1 = s1, points2 = s2, food = f, blocks = b, std = rd, level = l})
+    | snake1HasFruitInMouth state = state { food = scrambleFruits (f ++ newFruits state index1), blocks = b ++ newBlocks state index2, points1 = (s1+1),std = neo2}
+    | snake2HasFruitInMouth state = state { food = scrambleFruits(f ++ newFruits state index1), blocks = b ++ newBlocks state index2, points2 = (s2+1),std = neo2}
     | otherwise                  = state
     where indexStdGenTuple1 = randomR (1, 3) (rd)
-          index1            = fst indexStdGenTuple1
+          index1            = (fst indexStdGenTuple1)*l
           neo              = snd indexStdGenTuple1
           indexStdGenTuple2 = randomR (0, 3) (neo)
           index2            = fst indexStdGenTuple2
