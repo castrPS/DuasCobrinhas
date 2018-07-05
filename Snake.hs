@@ -51,9 +51,9 @@ main= do
 newGame:: Level -> Score -> IO ()
 newGame level score = do
     game level score
-    putStrLn "O placar vai se manter, quer jogar novamente? (Digite 's' para continuar ou outra tecla pra sair)"
+    putStrLn "O placar vai se manter, quer jogar novamente? (Digite 'n' para sair ou outra tecla para continuar)"
     resp <- getChar 
-    if resp == 's' then do
+    if resp /= 'n' then do
         l <- takeMVar level
         putMVar level (l+1)
         newGame level score
@@ -276,10 +276,10 @@ updateItens state@(State {points1 = s1, points2 = s2, food = f, blocks = b, std 
     | snake2HasFruitInMouth state = state { food = scrambleFruits(f ++ newFruits state index1), blocks = b ++ newBlocks state index2, points2 = (s2+1),std = neo2}
     | otherwise                  = state
     where indexStdGenTuple1 = randomR (1, 3) (rd)
-          index1            = (fst indexStdGenTuple1)*l
+          index1            = (fst indexStdGenTuple1)
           neo              = snd indexStdGenTuple1
-          indexStdGenTuple2 = randomR (0, 3) (neo)
-          index2            = fst indexStdGenTuple2
+          indexStdGenTuple2 = randomR (0, 3*l) (neo)
+          index2            = (fst indexStdGenTuple2)
           neo2              = snd indexStdGenTuple1
 
 updateSnakeHead1 :: State -> State
