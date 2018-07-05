@@ -45,27 +45,20 @@ data State = State {
 main= do
         score <- newMVar (0,0)
         level <- newMVar 1
-        game level score
-        putStrLn "O placar vai se manter, quer jogar novamente? (s/n)"
-        resp <- getChar 
-        newGame resp level score 
+        newGame level score 
 
 -- Loop para vários jogos
-newGame:: Char -> Level -> Score -> IO ()
-newGame resp level score 
-    | resp == 's' = do
+newGame:: Level -> Score -> IO ()
+newGame level score = do
+    game level score
+    putStrLn "O placar vai se manter, quer jogar novamente? (Digite 's' para continuar ou outra tecla pra sair)"
+    resp <- getChar 
+    if resp == 's' then do
         l <- takeMVar level
         putMVar level (l+1)
-        game level score
-        putStrLn "O placar vai se manter, quer jogar novamente? (s/n)"
-        resp <- getChar 
-        newGame resp level score 
-    | resp == 'n' = do 
+        newGame level score
+    else do 
         putStrLn "Bye Bye!!!"
-    | otherwise = do
-        putStrLn "Digite s ou n"
-        resp <- getChar 
-        newGame resp level score 
 
 -- A inicalização da tela de jogo
 game :: Level -> Score -> IO State
